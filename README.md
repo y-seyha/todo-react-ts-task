@@ -1,7 +1,8 @@
 # TaskFlow — React + TypeScript + Vite
 
 Todo app UI (React 19, Tailwind 4, Vite). All data lives in the NestJS backend
-in `../todo-backend` — there is no localStorage persistence anymore.
+in `../todo-backend`. Only the refresh token is persisted in the browser (see
+[Auth & session](#auth--session)).
 
 ## Running
 
@@ -40,10 +41,27 @@ The UI talks to these backend endpoints (`src/lib/*-api.ts`):
 | Delete             | `DELETE /api/v1/todo/:id`                                |
 | Bulk status/delete | `PATCH /api/v1/todo/bulk/status`, `DELETE /api/v1/todo/bulk` |
 | Profile            | `GET` / `PUT /api/v1/profile`                            |
+| Login / signup     | `POST /api/v1/auth/login`, `POST /api/v1/auth/signup`    |
+| Session refresh    | `POST /api/v1/auth/refresh`                              |
+| Current user       | `GET /api/v1/auth/me`                                    |
 
 Filtering, search, and sorting are done server-side; the client shows a
 debounced (300 ms) search and re-fetches after every mutation so the UI always
 reflects saved data. API failures surface in an alert banner with a Retry button.
+
+## Auth & session
+
+- The short-lived **access token is kept in memory**.
+- The **refresh token is persisted in `localStorage`** so a page reload can
+  restore the session.
+- On startup the app calls `GET /auth/me`; if the access token is expired it
+  automatically calls `POST /auth/refresh` and retries the request.
+- Concurrent 401s share a single refresh request, because the backend rotates
+  the refresh token on every use.
+- Logging out clears both tokens.
+
+> For a production app, prefer storing the refresh token in an `httpOnly`
+> cookie instead of `localStorage` to reduce XSS exposure.
 
 ## Scripts
 

@@ -18,6 +18,9 @@ import { TodoForm } from './components/TodoForm.tsx'
 import { TodoFilters } from './components/TodoFilters.tsx'
 import { TodoList } from './components/TodoList.tsx'
 import { BulkActionsBar } from './components/BulkActionsBar.tsx'
+import { AuthProvider } from './context/AuthContext.tsx'
+import { useAuth } from './context/auth-context.ts'
+import { AuthPage } from './components/AuthPage.tsx'
 
 const EMPTY_STATS: TodoStats = { total: 0, todo: 0, inProgress: 0, done: 0, starred: 0 }
 
@@ -42,7 +45,8 @@ const StatTile = ({ label, value, dotClass, sub }: StatTileProps) => (
   </div>
 )
 
-const App = () => {
+const Dashboard = () => {
+  const { user, logout } = useAuth()
   const [todos, setTodos] = useState<Todo[]>([])
   const [stats, setStats] = useState<TodoStats>(EMPTY_STATS)
   const [profile, setProfile] = useState<UserProfile>(DEFAULT_PROFILE)
@@ -62,13 +66,23 @@ const App = () => {
   useEffect(() => {
     const controller = new AbortController()
     fetchProfile(controller.signal)
-      .then(setProfile)
+      .then((p) => {
+        if (user) {
+          setProfile({
+            ...p,
+            name: `${user.firstName} ${user.lastName}`.trim(),
+            email: user.email,
+          })
+        } else {
+          setProfile(p)
+        }
+      })
       .catch((cause: unknown) => {
         if (controller.signal.aborted) return
         setError(cause instanceof Error ? cause.message : 'Could not load the profile.')
       })
     return () => controller.abort()
-  }, [])
+  }, [user])
 
   // Load the todo list whenever the filter, search, or refresh key changes.
   useEffect(() => {
@@ -237,7 +251,7 @@ const App = () => {
   return (
     <div className="min-h-screen bg-slate-50">
       <div className="mx-auto flex w-full max-w-3xl flex-col gap-5 px-4 py-8 sm:px-6 lg:py-12">
-        <Header profile={profile} onEditProfile={openProfile} />
+        <Header profile={profile} onEditProfile={openProfile} onLogout={logout} />
 
         {error !== null && (
           <div
@@ -320,4 +334,30 @@ const App = () => {
   )
 }
 
-export default App
+const SessionLoader = () => (
+  <div className="flex min-h-screen items-center justify-center bg-slate-50 px-4">
+    <div className="flex flex-col items-center gap-3">
+      <span className="h-8 w-8 animate-spin rounded-full border-2 border-slate-300 border-t-indigo-600" />
+      <p className="text-sm font-medium text-slate-500">Restoring your session…</p>
+    </div>
+  </div>
+)
+
+const MainApp = () => {
+  const { isAuthenticated, isInitializing } = useAuth()
+  if (isInitializing) {
+    return <SessionLoader />
+  }
+  if (!isAuthenticated) {
+    return <AuthPage />
+  }
+  return <Dashboard />
+}
+
+export default function App() {
+  return (
+    <AuthProvider>
+      <MainApp />
+    </AuthProvider>
+  )
+}
